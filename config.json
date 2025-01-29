@@ -1,0 +1,26 @@
+{
+    "constants": {
+        "hbar": 1.0
+    },
+    "wavefunction": {
+        "x0": -2.0,
+        "k0": 1000.0,
+        "sigma": 0.5,
+        "epsilon": 0.001,
+        "m": 1.0
+    },
+    "simulation": {
+        "dt": 0.000001,
+        "dx": 0.03,
+        "N_t": 1000,
+        "L": 10.0
+    },
+    "animation": {
+        "interval": 20,
+        "N_steps": 100,
+        "fname":"wavepacket"
+    },
+    "potential_energy": {
+        "mode": "delta"
+    }
+}
