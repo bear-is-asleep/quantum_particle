@@ -2,31 +2,47 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from functools import partial
+import json
+import argparse
 
-#Constants
-hbar = 1.0   # Planck's constant
-m = 1.0      # Particle mass
+# Set up argument parser
+parser = argparse.ArgumentParser(description='Wavefunction Animation')
+parser.add_argument('--save', dest='save', default=False, help='Set this flag to not save the animation')
 
-#Wavefunction parameters
-x0 = -2.0    # Initial position
-k0 = 1e3     # Initial momentum
-sigma = 0.5  # Width of the wavepacket
-epsilon = 1e-3  # Small number to check wavefunction normalization
+args = parser.parse_args()
 
-#Simulation parameters
-dt = 1e-6    # Time step
-dx = 3e-2     # Spacing of the spatial
-N_t = int(1e3)  # Number of time steps
-L = 10.0     # Size of the box
-grid = np.arange(-L / 2, L / 2, dx) # Spatial grid
+# Load data from JSON file
+with open('config.json', 'r') as f:
+    data = json.load(f)
 
-#Animation parameters
-interval = 20  # Time between frames in milliseconds
-N_steps = 100  # Number of steps to animate
+# Physics
+hbar = data["constants"]["hbar"]
+m = data["wavefunction"]["m"]
 
-#Potential energy
+# Wavefunction
+x0 = data["wavefunction"]["x0"]
+k0 = data["wavefunction"]["k0"]
+sigma = data["wavefunction"]["sigma"]
+epsilon = data["wavefunction"]["epsilon"]
+
+# Simulation
+dt = data["simulation"]["dt"]
+dx = data["simulation"]["dx"]
+N_t = data["simulation"]["N_t"]
+L = data["simulation"]["L"]
+grid = np.arange(-L / 2, L / 2, dx)
+
+# Animation
+interval = data["animation"]["interval"]
+N_steps = data["animation"]["N_steps"]
+fname = data["animation"]["fname"]
+folder = 'animations/'
+
+
+# Set up potential energy
 V = np.zeros_like(grid)
-V[int(len(grid)/2)] = 1e3 #Delta function potential
+if data["potential_energy"]["mode"] == "delta":
+    V[int(len(grid) / 2)] = 1000.0  # Delta function potential
 
 # Prepare the figure
 fig, ax = plt.subplots()
@@ -262,7 +278,10 @@ if __name__ == "__main__":
     # Animate
     make_animation = partial(animate, nsteps=N_t)
     line, = ax.plot(grid, compute_probability(psi))
-    animation = FuncAnimation(fig, make_animation, frames=N_steps, interval=interval)
-    plt.show()
+    ani = FuncAnimation(fig, make_animation, frames=N_steps, interval=interval)
+    if args.save:
+        ani.save(folder+fname+'.mp4', writer='ffmpeg', fps=30)
+    else:
+        plt.show()
     
  
