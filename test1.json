@@ -3,24 +3,24 @@
         "hbar": 1.0
     },
     "wavefunction": {
-        "x0": 0.0,
-        "k0": 0.0,
-        "sigma": 0.1,
+        "x0": -2.0,
+        "k0": 1000.0,
+        "sigma": 0.5,
         "epsilon": 0.001,
         "m": 1.0
     },
     "simulation": {
-        "dt": 0.0005,
-        "dx": 0.5,
-        "N_t": 10,
+        "dt": 0.000001,
+        "dx": 0.03,
+        "N_t": 1000,
         "L": 10.0,
-        "evolve_method": "crank_nicholson"
+        "evolve_method": "euler"
     },
     "animation": {
         "interval": 20,
-        "N_steps": 100
+        "N_steps": 500
     },
     "potential_energy": {
-        "mode": "none"
+        "mode": "delta"
     }
 }

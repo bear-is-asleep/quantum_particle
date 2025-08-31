@@ -4,15 +4,19 @@ from matplotlib.animation import FuncAnimation
 from functools import partial
 import json
 import argparse
+import os
+import time
 
 # Set up argument parser
 parser = argparse.ArgumentParser(description='Wavefunction Animation')
-parser.add_argument('--save', dest='save', default=False, help='Set this flag to not save the animation')
+parser.add_argument('-s','--save', dest='save', action='store_true', default=False, help='Set this flag to not save the animation')
+parser.add_argument('-f','--fname', dest='fname', type=str, default='wavefunction', help='Name of the animation file')
+parser.add_argument('-c','--config', dest='config', type=str, default='test1.json', help='Name of the configuration file')
 
 args = parser.parse_args()
 
 # Load data from JSON file
-with open('config.json', 'r') as f:
+with open(args.config, 'r') as f:
     data = json.load(f)
 
 # Physics
@@ -30,19 +34,25 @@ dt = data["simulation"]["dt"]
 dx = data["simulation"]["dx"]
 N_t = data["simulation"]["N_t"]
 L = data["simulation"]["L"]
+evolve_method = data["simulation"]["evolve_method"]
 grid = np.arange(-L / 2, L / 2, dx)
 
 # Animation
 interval = data["animation"]["interval"]
 N_steps = data["animation"]["N_steps"]
-fname = data["animation"]["fname"]
+fname = args.fname
 folder = 'animations/'
+if os.path.exists(folder) == False:
+    os.mkdir(folder)
 
 
 # Set up potential energy
 V = np.zeros_like(grid)
-if data["potential_energy"]["mode"] == "delta":
+vmode = data["potential_energy"]["mode"]
+if vmode == "delta":
     V[int(len(grid) / 2)] = 1000.0  # Delta function potential
+else:
+    print(f'Potential energy mode "{vmode}" not recognized. Using default V(x) = 0.')
 
 # Prepare the figure
 fig, ax = plt.subplots()
@@ -148,6 +158,75 @@ def compute_probability(psi):
     """
     return np.real(psi * np.conj(psi))
 
+#Works
+def evolve_crank_nicholson(psi, dt, dx, V):
+    """
+    Evolves the wavefunction in time using the Crank-Nicholson method.
+
+    ----------------------
+    Parameters:
+    psi: np.array
+        1D array of the wavefunction
+    dt: float
+        Time step
+    dx: float
+        Spacing of the spatial grid
+    V: np.array
+        1D array of the potential energy
+
+    ----------------------
+    Returns:
+    psi_new: np.array
+        1D array of the evolved wavefunction
+    """
+    global steps
+    t0 = time.time()
+    # Number of spatial points
+    N = len(psi)
+
+    # Calculate the pre-factor
+    lambda_coeff = hbar* dt / (2 * m * dx**2)
+
+    # Construct matrix A for L * psi_next = R * psi_current
+    A = np.zeros((N, N), dtype=complex)
+    B = np.zeros((N, N), dtype=complex)
+
+    # Populate matrix A and matrix B
+    for i in range(N):
+        # Construct the main diagonal of A
+        A[i, i] = 2 + 2j * lambda_coeff + 2j * lambda_coeff * V[i] * dx**2
+        B[i, i] = 2 - 2j * lambda_coeff - 2j * lambda_coeff * V[i] * dx**2
+
+        # Construct the sub-diagonal (-i lambda) for A
+        if i > 0:
+            A[i, i-1] = -1j * lambda_coeff
+            B[i, i-1] = 1j * lambda_coeff
+
+        # Construct the super-diagonal (-i lambda) for A
+        if i < N - 1:
+            A[i, i+1] = -1j * lambda_coeff
+            B[i, i+1] = 1j * lambda_coeff
+
+    t1 = time.time()
+
+    # Calculate the right hand side B @ psi
+    b = B @ psi
+
+    t2 = time.time()
+
+    # Solve A @ psi_new = b
+    psi_new = np.linalg.solve(A, b)
+    
+    t3 = time.time()
+    
+    if steps % 100 == 0:
+        print(f'-cn step {steps} psi - psi_new: {np.sum(np.abs(psi - psi_new)):.2e}')
+        print(f'-Construction of A and B: {t1-t0:.2e} s')
+        print(f'-Calculation of b: {t2-t1:.2e} s')
+        print(f'-Solution of A @ psi_new = b: {t3-t2:.2e} s')
+
+    return psi_new
+
 #Replace with Crank-Nicolson method
 #https://people.sc.fsu.edu/~jpeterson/5-CrankNicolson.pdf
 def compute_laplacian(psi, dx, pad=True, order=1):
@@ -177,7 +256,8 @@ def compute_laplacian(psi, dx, pad=True, order=1):
         laplacian[0:2] = laplacian[-2:] = 0.0 # Set the boundaries to zero
     return laplacian
 
-def evolve(psi, dt, dx, V):
+steps = 0
+def evolve(psi, dt, dx, V, method='crank_nicholson'):
     """
     Evolves the wavefunction in time using Euler's method
     ----------------------
@@ -190,17 +270,25 @@ def evolve(psi, dt, dx, V):
         Spacing of the spatial grid
     V: np.array
         1D array of the potential energy
+    method: str
+        Method to use for time evolution ("euler" or "crank_nicholson")
     ----------------------
     Returns:
     psi: np.array
         1D array of the evolved wavefunction
     """
-    
-    # Compute the Laplacian
-    laplacian = compute_laplacian(psi, dx)
+    global steps
+    _psi = np.copy(psi)
+    if method == 'euler':
+        # Compute the Laplacian
+        laplacian = compute_laplacian(psi, dx)
 
-    # Evolve the wavefunction
-    psi += -1j * dt * (hbar / (2 * m) * laplacian + V * psi)
+        # Evolve the wavefunction
+        psi += -1j * dt * (hbar / (2 * m) * laplacian + V * psi)
+    elif method == 'crank_nicholson':
+        psi = evolve_crank_nicholson(psi, dt, dx, V)
+    else:
+        raise ValueError(f'Method "{method}" not recognized. Use "euler" or "crank_nicholson".')
 
     # Normalize the wavefunction
     psi = normalize(psi, dx)
@@ -208,10 +296,15 @@ def evolve(psi, dt, dx, V):
     #for i,x in enumerate(grid):
     #   print(f'grid: {x:.2e}, psi: {np.real(psi[i]):.2e}, prob: {compute_probability(psi)[i]:.2e}')
     #print(f'psi: {psi}')
+    
+    if steps % 100 == 0:
+        qqq = 0
+        #print(f'- step {steps} psi - _psi: {np.sum(np.abs(psi - _psi)):.2e}')
 
+    steps += 1
     return psi
 
-def run_simulation(psi, dt, dx, n, V):
+def run_simulation(psi, dt, dx, n, V, method='crank_nicholson'):
     """
     Runs the simulation for a given number of time steps
     ----------------------
@@ -226,6 +319,8 @@ def run_simulation(psi, dt, dx, n, V):
         Number of time steps
     V: np.array
         1D array of the potential energy
+    method: str
+        Method to use for time evolution ("euler" or "crank_nicholson")
     ----------------------
     Returns:
     psi: np.array
@@ -240,7 +335,7 @@ def run_simulation(psi, dt, dx, n, V):
 
     # Evolve the wavefunction
     for i in range(n):
-        psi = evolve(psi, dt, dx, V)
+        psi = evolve(psi, dt, dx, V, method)
 
         # # Check the normalization
         # if i % 1 == 0:
@@ -266,8 +361,14 @@ def animate(i, nsteps):
         Line object to animate
     """
     global psi, probability
-    psi, probability = run_simulation(psi, dt, dx, nsteps, V)
+    t0 = time.time()
+    psi, probability = run_simulation(psi, dt, dx, nsteps, V, method=evolve_method)
+    t1 = time.time()
     line.set_ydata(probability)
+    t2 = time.time()
+    
+    #print(f'Evolution of the wavefunction: {t1-t0:.2e} s')
+    #print(f'Update of the plot: {t2-t1:.2e} s')
     return line,
 
 if __name__ == "__main__":
@@ -283,5 +384,3 @@ if __name__ == "__main__":
         ani.save(folder+fname+'.mp4', writer='ffmpeg', fps=30)
     else:
         plt.show()
-    
- 
