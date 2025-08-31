@@ -1,5 +1,5 @@
-# quantum_particle
-Describe quantum wavepacket
+# Quantum Wave Simulation
+Simulate a quantum wave packet in one dimension. Uses the Schrodinger equation to evolve the wavefunction over time.
 
 ### Schrodinger Equation
 
