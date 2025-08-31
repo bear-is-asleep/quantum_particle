@@ -1,9 +1,6 @@
 # quantum_particle
 Describe quantum wavepacket
 
-## Crank Nicolson
-Crank Nicolson method is a numerical method used to solve partial differential equations. It is a finite difference method that is unconditionally stable and second order accurate in time. It is used to solve the Schrodinger equation in quantum mechanics.
-
 ### Schrodinger Equation
 
 $i\hbar \frac{\partial \psi}{\partial t} = -\frac{\hbar^2}{2m} \frac{\partial^2 \psi}{\partial x^2} + V(x,t)\psi$
